@@ -155,7 +155,7 @@ class TestInstallation(unittest.TestCase):
         self.assertFalse(any("ipdb" in dep for dep in runtime_dependencies))
         self.assertFalse(any("icecream" in dep for dep in dev_dependencies))
         self.assertFalse(any("ipdb" in dep for dep in dev_dependencies))
-        self.assertEqual(pyproject["project"]["requires-python"], ">=3.11,<3.14")
+        self.assertEqual(pyproject["project"]["requires-python"], ">=3.12,<3.14")
         self.assertEqual(
             pyproject["project"]["scripts"]["opendde"],
             "runner.cli:opendde_cli",

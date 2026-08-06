@@ -4,7 +4,7 @@
 ![OpenDDE banner](https://raw.githubusercontent.com/aurekaresearch/OpenDDE/main/assets/OpenDDE.png)
 
 ![Status](https://img.shields.io/badge/status-preview-orange)
-![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)
+![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 
 OpenDDE is an open-source, all-atom biomolecular foundation model that turns co-folding into a scalable engine for structure prediction, design, and optimization in drug discovery.
@@ -35,14 +35,14 @@ is required. See the
 
 ## Installation
 
-OpenDDE supports CPython `3.11`, `3.12`, and `3.13`. We recommend
+The RGI integration supports CPython `3.12` and `3.13`. We recommend
 [`uv`](https://docs.astral.sh/uv/getting-started/installation/) for Python
 installations. Choose one of the following methods.
 
 ### Install from PyPI
 
 ```bash
-uv venv --python 3.11
+uv venv --python 3.12
 ```
 
 CPU:
@@ -62,7 +62,7 @@ uv pip install --python .venv --torch-backend cu126 "opendde[gpu]"
 ```bash
 git clone https://github.com/aurekaresearch/OpenDDE.git
 cd OpenDDE
-uv venv --python 3.11
+uv venv --python 3.12
 ```
 
 CPU:

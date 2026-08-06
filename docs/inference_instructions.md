@@ -5,14 +5,14 @@ Concise reference for installing OpenDDE, preparing runtime data, and running
 
 ## Install
 
-OpenDDE supports CPython `3.11`, `3.12`, and `3.13`. We recommend
+The RGI integration supports CPython `3.12` and `3.13`. We recommend
 [`uv`](https://docs.astral.sh/uv/getting-started/installation/) for Python
 installations. Choose one of the following methods.
 
 ### Install from PyPI
 
 ```bash
-uv venv --python 3.11
+uv venv --python 3.12
 ```
 
 CPU:
@@ -32,7 +32,7 @@ uv pip install --python .venv --torch-backend cu126 "opendde[gpu]"
 ```bash
 git clone https://github.com/aurekaresearch/OpenDDE.git
 cd OpenDDE
-uv venv --python 3.11
+uv venv --python 3.12
 ```
 
 CPU:
