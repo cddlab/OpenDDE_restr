@@ -509,6 +509,18 @@ def infer_predict(runner: InferenceRunner, configs: Any) -> None:
                             f.write(data_error_message)
                         continue
 
+                    if runner.dumper.is_complete(
+                        group_name="",
+                        sample_name=sample_name,
+                        seed=seed,
+                        n_sample=configs.sample_diffusion.N_sample,
+                    ):
+                        logger.info(
+                            f"[Rank {DIST_WRAPPER.rank}] {sample_name} [seed:{seed}] "
+                            "already complete; skipping."
+                        )
+                        continue
+
                     logger.info(
                         f"[Rank {DIST_WRAPPER.rank} ({data['sample_index'] + 1}/{num_data})] "
                         f"{sample_name} [seed:{seed}]: "

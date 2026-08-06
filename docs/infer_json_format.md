@@ -35,9 +35,15 @@ Job fields:
 | `sequences` | Yes | List of entities. Each item has exactly one entity key. |
 | `modelSeeds` | No | Default seeds for the job. Overridden by `--seeds`; if neither is set, a random seed is sampled. |
 | `covalent_bonds` | No | Explicit covalent links between entities. |
+| `restraints_config` | No | RGI configuration used by the `rgi-integration` branch. |
 
 Every entity has `count`. Optional `id` is a list of chain IDs; its length must
 match `count`.
+
+On the RGI fork, every entity also accepts optional
+`conformer_restraints: true`. It opts that entity into the shared conformer
+configuration; the default is `false`. See
+[`restraint_guided_inference.md`](./restraint_guided_inference.md).
 
 ## `proteinChain`
 

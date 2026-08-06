@@ -52,6 +52,7 @@ dependencies = [
   "networkx>=3.4.2",
   "packaging>=23.2",
   "requests>=2.31.0",
+  "rgi-utils @ git+https://github.com/cddlab/rgi_utils.git",
 ]
 
 [project.optional-dependencies]

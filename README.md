@@ -25,6 +25,14 @@ OpenDDE is an open-source, all-atom biomolecular foundation model that turns co-
     - The Docker image can be pulled with `docker pull aurekaresearch/opendde:v1`
     - The 2026ARK-AB Benchmark is now available
 
+## Restraint-Guided Inference fork
+
+The private `cddlab/OpenDDE_restr` fork's `rgi-integration` branch supports
+[`rgi_utils`](https://github.com/cddlab/rgi_utils) restraints during
+diffusion. Configuration is carried in each input job; no additional CLI flag
+is required. See the
+[`OpenDDE RGI guide`](docs/restraint_guided_inference.md).
+
 ## Installation
 
 OpenDDE supports CPython `3.11`, `3.12`, and `3.13`. We recommend

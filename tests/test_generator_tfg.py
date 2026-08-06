@@ -81,6 +81,17 @@ def _tfg_cfg():
         "terms": {"_MockGeoPotential": {"interval": 1, "weight": 0.01}},
     }
 
+
+class _MockRestraints:
+    def __init__(self):
+        self.calls = []
+
+    def minimize(self, coords, step, sigma):
+        self.calls.append((coords.shape, step, sigma))
+        coords[..., 0, 0] += 0.25
+        return coords
+
+
 def test_sample_diffusion_shape_and_determinism_without_guidance():
     _seed(0)
     out1 = sample_diffusion(N_sample=3, **_inputs())
@@ -89,11 +100,13 @@ def test_sample_diffusion_shape_and_determinism_without_guidance():
     assert out1.shape == (3, 6, 3)
     torch.testing.assert_close(out1, out2)
 
+
 def test_tfg_guidance_runs_and_preserves_n_sample():
     _seed(0)
     out = sample_diffusion(N_sample=2, guidance_configs=_tfg_cfg(), **_inputs())
     assert out.shape == (2, 6, 3)
     assert torch.isfinite(out).all()
+
 
 def test_tfg_guidance_chunked_preserves_shape():
     _seed(0)
@@ -124,6 +137,7 @@ def test_sample_diffusion_forwards_pair_z_spec_without_guidance():
     assert seen_specs
     assert all(spec is sentinel for spec in seen_specs)
 
+
 def test_tfg_guidance_forwards_pair_z_spec_to_denoiser():
     _seed(0)
     sentinel = object()
@@ -148,3 +162,33 @@ def test_tfg_guidance_forwards_pair_z_spec_to_denoiser():
     assert out.shape == (1, 6, 3)
     assert seen_specs
     assert all(spec is sentinel for spec in seen_specs)
+
+
+def test_rgi_runs_after_denoising_without_tfg():
+    _seed(0)
+    restraints = _MockRestraints()
+    guided = sample_diffusion(
+        N_sample=2,
+        combined_restraints=restraints,
+        **_inputs(n_step=2),
+    )
+    _seed(0)
+    plain = sample_diffusion(N_sample=2, **_inputs(n_step=2))
+
+    assert len(restraints.calls) == 2
+    assert all(call[0] == torch.Size([2, 6, 3]) for call in restraints.calls)
+    assert not torch.allclose(guided, plain)
+
+
+def test_rgi_composes_after_tfg_refinement():
+    _seed(0)
+    restraints = _MockRestraints()
+    output = sample_diffusion(
+        N_sample=2,
+        guidance_configs=_tfg_cfg(),
+        combined_restraints=restraints,
+        **_inputs(n_step=2),
+    )
+
+    assert len(restraints.calls) == 2
+    assert torch.isfinite(output).all()

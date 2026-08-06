@@ -12,6 +12,27 @@ from opendde.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def _rigid_align_to_target(coords: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    """Rigidly align coords onto target with a batched Kabsch fit."""
+    source_center = coords.mean(dim=-2, keepdim=True)
+    target_center = target.mean(dim=-2, keepdim=True)
+    source = coords - source_center
+    reference = target - target_center
+    covariance = source.transpose(-2, -1) @ reference
+    u, _, vh = torch.linalg.svd(covariance)
+    v = vh.transpose(-2, -1)
+    ut = u.transpose(-2, -1)
+    det = torch.linalg.det(v @ ut)
+    correction = torch.diag_embed(
+        torch.stack(
+            (torch.ones_like(det), torch.ones_like(det), det),
+            dim=-1,
+        )
+    )
+    rotation = v @ correction @ ut
+    return source @ rotation.transpose(-2, -1) + target_center
+
+
 class InferenceNoiseScheduler:
     """
     Scheduler for noise-level (time steps).
@@ -92,6 +113,7 @@ def sample_diffusion(
     rollout_seed: Optional[int] = None,
     guidance_configs: Optional[dict[str, Any]] = None,
     pair_z_spec: Any = None,
+    combined_restraints: Optional[Any] = None,
 ) -> torch.Tensor:
     """Implements Algorithm 18 in AF3.
     It performances denoising steps from time 0 to time T.
@@ -125,6 +147,7 @@ def sample_diffusion(
         enable_efficient_fusion (bool): Whether to enable efficient fusion. Defaults to False.
         guidance_configs (Optional[dict[str, Any]]): Training-free guidance configs. Defaults to None.
         pair_z_spec (Any): Optional Fold-CP pair shard metadata forwarded to denoise_net.
+        combined_restraints (Optional[Any]): Per-structure rgi_utils instance.
 
     Returns:
         torch.Tensor: the denoised coordinates of x in inference stage
@@ -212,6 +235,8 @@ def sample_diffusion(
                     num_diffusion_steps=num_diffusion_steps,
                     step_scale_eta=step_scale_eta,
                     torch_generator=torch_generator,
+                    combined_restraints=combined_restraints,
+                    sigma_gate=float(c_tau_last),
                 )
             else:
                 x_denoised = denoise_net(
@@ -229,6 +254,15 @@ def sample_diffusion(
                     inplace_safe=inplace_safe,
                     enable_efficient_fusion=enable_efficient_fusion,
                 )
+
+                if combined_restraints is not None:
+                    shape = x_denoised.shape
+                    flat = x_denoised.reshape(-1, shape[-2], shape[-1])
+                    combined_restraints.minimize(flat, step_i, float(c_tau_last))
+                    x_denoised = flat.reshape(shape)
+                    x_noisy = _rigid_align_to_target(
+                        x_noisy.float(), x_denoised.float()
+                    ).to(x_noisy.dtype)
 
                 delta = (x_noisy - x_denoised) / t_hat[
                     ..., None, None

@@ -120,9 +120,16 @@ class SampleDictToFeatures:
 
         atom_array = None
         asym_chain_idx = 0
+        self.smiles_by_chain: dict[str, str] = {}
         for idx, type2entity_dict in enumerate(self.input_dict["sequences"]):
             for entity_type, entity in type2entity_dict.items():
                 entity_id = str(idx + 1)
+                ligand_value = entity.get("ligand")
+                is_smiles_ligand = (
+                    entity_type == "ligand"
+                    and isinstance(ligand_value, str)
+                    and not ligand_value.startswith(("CCD_", "FILE_"))
+                )
 
                 entity_atom_array = None
                 ids = entity.get("id")
@@ -140,6 +147,9 @@ class SampleDictToFeatures:
                                 break
                             asym_chain_idx += 1
 
+                    if is_smiles_ligand:
+                        self.smiles_by_chain[asym_id_str] = ligand_value
+
                     asym_chain = copy.deepcopy(entity["atom_array"])
                     chain_id = [asym_id_str] * len(asym_chain)
                     copy_id = [asym_chain_count] * len(asym_chain)
@@ -148,6 +158,14 @@ class SampleDictToFeatures:
                     asym_chain.set_annotation("chain_id", chain_id)
                     asym_chain.set_annotation("label_seq_id", asym_chain.res_id)
                     asym_chain.set_annotation("copy_id", copy_id)
+                    asym_chain.set_annotation(
+                        "conformer_restraints",
+                        np.full(
+                            len(asym_chain),
+                            bool(entity.get("conformer_restraints", False)),
+                            dtype=bool,
+                        ),
+                    )
                     if entity_atom_array is None:
                         entity_atom_array = asym_chain
                     else:
@@ -390,4 +408,10 @@ class SampleDictToFeatures:
                 exclude_std_residue=True,
             )
             feature_dict.update(geometry_featurizer.get_features())
+
+        feature_dict["atom_array"] = atom_array
+        feature_dict["smiles_by_chain"] = self.smiles_by_chain
+        restraints_config = self.input_dict.get("restraints_config")
+        if restraints_config is not None:
+            feature_dict["restraints_config"] = restraints_config
         return feature_dict, atom_array, token_array

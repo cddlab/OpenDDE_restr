@@ -314,6 +314,11 @@ opendde pred -i examples/input.json -o ./output -n opendde_v1 \
   --use_tfg_guidance true
 ```
 
+The `rgi-integration` fork also supports
+[Restraint-Guided Inference](./restraint_guided_inference.md) through a
+per-job `restraints_config`. RGI needs no CLI flag. If RGI and TFG are both
+enabled, OpenDDE applies TFG first and RGI second within each diffusion step.
+
 Outputs are written to:
 
 ```text

@@ -421,10 +421,21 @@ def rdkit_mol_to_atom_array(mol: Chem.Mol, removeHs: bool = True) -> AtomArray:
         atom_array.charge[i] = atom.GetFormalCharge()
         atom_array.coord[i, :] = coord[i, :]
 
-    bonds = []
-    for bond in mol.GetBonds():
-        bonds.append([bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()])
-    atom_array.bonds = cast(Any, struc).BondList(atom_count, np.array(bonds))
+    kekule_mol = Chem.Mol(mol)
+    try:
+        Chem.Kekulize(kekule_mol, clearAromaticFlags=True)
+    except Exception:
+        kekule_mol = mol
+    bonds = [
+        [
+            bond.GetBeginAtomIdx(),
+            bond.GetEndAtomIdx(),
+            int(bond.GetBondTypeAsDouble()),
+        ]
+        for bond in kekule_mol.GetBonds()
+    ]
+    bond_array = np.asarray(bonds, dtype=int) if bonds else np.empty((0, 3), dtype=int)
+    atom_array.bonds = cast(Any, struc).BondList(atom_count, bond_array)
     if removeHs:
         atom_array = atom_array[atom_array.element != "H"]
     return atom_array

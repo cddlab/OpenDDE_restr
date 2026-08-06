@@ -993,6 +993,19 @@ class OpenDDE(nn.Module):
         elif rollout_seed is not None:
             rollout_seed = int(rollout_seed)
 
+        combined_restraints = None
+        restraints_config = input_feature_dict.get("restraints_config")
+        if restraints_config:
+            from rgi_utils.combined import CombinedRestraints
+            from rgi_utils.opendde.adapter import OpenDDEAdapter
+
+            combined_restraints = CombinedRestraints()
+            combined_restraints.setup(
+                OpenDDEAdapter(input_feature_dict),
+                nbatch=N_sample,
+                config=restraints_config,
+            )
+
         pred_dict["coordinate"] = self.sample_diffusion(
             denoise_net=self.diffusion_module,
             input_feature_dict=sample_input_feature_dict,
@@ -1010,7 +1023,14 @@ class OpenDDE(nn.Module):
             inplace_safe=inplace_safe,
             enable_efficient_fusion=self.enable_efficient_fusion,
             rollout_seed=rollout_seed,
+            combined_restraints=combined_restraints,
         )
+        if combined_restraints is not None:
+            coordinates = pred_dict["coordinate"]
+            combined_restraints.finalize(
+                coordinates.reshape(-1, coordinates.shape[-2], coordinates.shape[-1]),
+                len(noise_schedule) - 1,
+            )
         return pred_dict["coordinate"]
 
     def sample_diffusion(

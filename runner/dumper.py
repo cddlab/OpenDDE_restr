@@ -93,6 +93,21 @@ class DataDumper:
         dump_dir = os.path.join(self.base_dir, group_name, sample_name, f"seed_{seed}")
         return dump_dir
 
+    def is_complete(
+        self, group_name: str, sample_name: str, seed: int, n_sample: int
+    ) -> bool:
+        """Return whether every ranked structure and confidence file exists."""
+        prediction_dir = (
+            Path(self._get_dump_dir(group_name, sample_name, seed)) / "predictions"
+        )
+        return all(
+            (prediction_dir / f"{sample_name}_sample_{rank}.cif").is_file()
+            and (
+                prediction_dir / f"{sample_name}_summary_confidence_sample_{rank}.json"
+            ).is_file()
+            for rank in range(n_sample)
+        )
+
     def dump_predictions(
         self,
         pred_dict: dict,
@@ -150,6 +165,7 @@ class DataDumper:
             seed=seed,
             sorted_indices=sorted_indices,
         )
+
     def _save_structure(
         self,
         pred_coordinates: torch.Tensor,

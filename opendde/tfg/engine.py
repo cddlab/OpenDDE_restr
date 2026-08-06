@@ -66,7 +66,9 @@ def _sample_eps(
     """
     if std == 0.0:
         return torch.zeros((1, *shape), device=device, dtype=dtype)
-    return std * torch.randn((k, *shape), device=device, dtype=dtype, generator=generator)
+    return std * torch.randn(
+        (k, *shape), device=device, dtype=dtype, generator=generator
+    )
 
 
 def _logmeanexp(x: torch.Tensor, dim: int) -> torch.Tensor:
@@ -351,6 +353,8 @@ class TFGEngine:
         inplace_safe: bool,
         enable_efficient_fusion: bool,
         torch_generator: Optional[torch.Generator] = None,
+        combined_restraints: Any = None,
+        sigma_gate: float | None = None,
     ) -> torch.Tensor:
         """Run one TFG-aware diffusion update: `x_t -> x_{t-1}`.
 
@@ -378,6 +382,8 @@ class TFGEngine:
             inplace_safe: Whether `denoise_net` may do in-place ops.
             enable_efficient_fusion: Whether to enable fused kernels.
             torch_generator: Optional RNG used for reproducible stochastic guidance.
+            combined_restraints: Per-structure rgi_utils instance.
+            sigma_gate: Pre-churn diffusion sigma used for RGI activation gates.
 
         Returns:
             Updated noisy coordinates `x_{t-1}` with shape `[*batch, N_atom, 3]`.
@@ -491,16 +497,28 @@ class TFGEngine:
                 # on energy E). The step size is `cfg.mu`.
                 x0_ref = x0_ref + grad_x0 * float(self.cfg.mu)
 
+            anchor = x_work + xt_shift
+            if combined_restraints is not None:
+                if sigma_gate is None:
+                    raise ValueError(
+                        "sigma_gate is required when combined_restraints is set"
+                    )
+                shape = x0_ref.shape
+                flat = x0_ref.reshape(-1, shape[-2], shape[-1])
+                combined_restraints.minimize(flat, step_i, sigma_gate)
+                x0_ref = flat.reshape(shape)
+                from opendde.model.generator import _rigid_align_to_target
+
+                anchor = _rigid_align_to_target(anchor.float(), x0_ref.float()).to(
+                    x_work.dtype
+                )
+
             # 5) predictor-corrector update
             # keep sign convention consistent with AF3 sampler
-            # `direction` is the normalized update direction implied by x0.
-            direction = (x_work + xt_shift - x0_ref) / t_hat[..., None, None]
+            # direction is the normalized update direction implied by x0.
+            direction = (anchor - x0_ref) / t_hat[..., None, None]
             dt = c_tau - t_hat
-            x_next = (
-                x_work
-                + xt_shift
-                + float(step_scale_eta) * dt[..., None, None] * direction
-            )
+            x_next = anchor + float(step_scale_eta) * dt[..., None, None] * direction
 
             # stochasticity
             # Inject noise so the marginal at the next noise level matches the
