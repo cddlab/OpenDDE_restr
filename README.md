@@ -1,3 +1,8 @@
+see [rgi_utils](https://github.com/cddlab/rgi_utils) for more information.
+
+<details>
+<summary>Original README</summary>
+
 # OpenDDE-Preview
 
 
@@ -306,3 +311,5 @@ OpenDDE is released under the Apache-2.0 license. See [LICENSE](https://github.c
 ## Partnership and Collaboration
 
 ![Hiring](https://raw.githubusercontent.com/aurekaresearch/OpenDDE/main/assets/hiring.png)
+
+</details>
