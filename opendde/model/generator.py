@@ -114,6 +114,8 @@ def sample_diffusion(
     guidance_configs: Optional[dict[str, Any]] = None,
     pair_z_spec: Any = None,
     combined_restraints: Optional[Any] = None,
+    atom_window_spec: Any = None,
+    foldcp_attention_bias: Any = None,
 ) -> torch.Tensor:
     """Implements Algorithm 18 in AF3.
     It performances denoising steps from time 0 to time T.
@@ -227,6 +229,8 @@ def sample_diffusion(
                     p_lm=p_lm,
                     c_l=c_l,
                     pair_z_spec=pair_z_spec,
+                    atom_window_spec=atom_window_spec,
+                    foldcp_attention_bias=foldcp_attention_bias,
                     chunk_size=attn_chunk_size,
                     inplace_safe=inplace_safe,
                     enable_efficient_fusion=enable_efficient_fusion,
@@ -250,6 +254,8 @@ def sample_diffusion(
                     pair_z_spec=pair_z_spec,
                     p_lm=p_lm,
                     c_l=c_l,
+                    atom_window_spec=atom_window_spec,
+                    foldcp_attention_bias=foldcp_attention_bias,
                     chunk_size=attn_chunk_size,
                     inplace_safe=inplace_safe,
                     enable_efficient_fusion=enable_efficient_fusion,

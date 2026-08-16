@@ -8,6 +8,7 @@ import torch.distributed as dist
 import torch.nn as nn
 
 from opendde.distributed.foldcp.config import FoldCPConfig
+from opendde.distributed.foldcp.atom_window import FoldCPWindowShardSpec
 from opendde.distributed.foldcp.mesh import FoldCPProcessMesh
 from opendde.distributed.foldcp.launch import (
     foldcp_linear_with_source_launch_shape,
@@ -28,6 +29,7 @@ from opendde.model.modules.transformer import (
     AtomAttentionDecoder,
     AtomAttentionEncoder,
     DiffusionTransformer,
+    FoldCPQueryOwnedAttentionBias,
 )
 from opendde.model.triangular.layers import LayerNorm
 from opendde.model.utils import expand_at_dim, get_checkpoint_fn, permute_final_dims
@@ -94,7 +96,9 @@ def _foldcp_diffusion_cache_pair_z_projection_fits(
     max_bytes = _foldcp_diffusion_cache_pair_z_projection_max_bytes()
     if max_bytes <= 0:
         return False
-    layernorm_workspace_bytes = int(valid_rows) * int(n_token) * int(feature_dim) * 4 * 3
+    layernorm_workspace_bytes = (
+        int(valid_rows) * int(n_token) * int(feature_dim) * 4 * 3
+    )
     return layernorm_workspace_bytes <= max_bytes
 
 
@@ -255,9 +259,8 @@ class DiffusionConditioning(nn.Module):
         source_rows = int(original_n) * int(original_n)
         launch = flat.new_zeros(source_rows, flat.shape[-1])
         row_offsets = (
-            (torch.arange(valid_rows, device=x.device) + int(row_start))
-            * int(original_n)
-        )
+            torch.arange(valid_rows, device=x.device) + int(row_start)
+        ) * int(original_n)
         source_index = (
             row_offsets[:, None]
             + torch.arange(int(original_n), device=x.device)[None, :]
@@ -713,9 +716,13 @@ class DiffusionConditioning(nn.Module):
         valid_rows = max(0, min(row_end, n_token) - row_start)
         if valid_rows == 0:
             return pair_z_row_slab.contiguous()
-        flat = pair_z_row_slab[..., :valid_rows, :n_token, :].contiguous().reshape(
-            valid_rows * n_token,
-            pair_z_row_slab.shape[-1],
+        flat = (
+            pair_z_row_slab[..., :valid_rows, :n_token, :]
+            .contiguous()
+            .reshape(
+                valid_rows * n_token,
+                pair_z_row_slab.shape[-1],
+            )
         )
         global_flat_start = row_start * n_token
         source_rows = n_token * n_token
@@ -1247,6 +1254,10 @@ class DiffusionModule(nn.Module):
         use_conditioning: bool = True,
         enable_efficient_fusion: bool = False,
         pair_z_spec: Optional[FoldCPPairShardSpec] = None,
+        atom_window_spec: Optional[FoldCPWindowShardSpec] = None,
+        foldcp_attention_bias: Optional[
+            list[torch.Tensor | FoldCPQueryOwnedAttentionBias]
+        ] = None,
     ) -> torch.Tensor:
         """The denoising network used by diffusion sampling.
         As in EDM equation (7), this is F_theta(c_in * x, c_noise(sigma)).
@@ -1289,7 +1300,6 @@ class DiffusionModule(nn.Module):
             blocks_per_ckpt = None
         foldcp_mesh = self._maybe_foldcp_mesh()
 
-        atom_window_spec = None
         if foldcp_mesh is not None and pair_z_spec is not None and r_noisy.is_cuda:
             self.atom_attention_encoder._warmup_foldcp_atom_window_p2p(
                 mesh=foldcp_mesh,
@@ -1305,12 +1315,14 @@ class DiffusionModule(nn.Module):
                 else:
                     s_trunk = 0 * s_trunk
                     z_trunk_for_cache = 0 * z_trunk
-            pair_z, pair_z_spec = self.diffusion_conditioning.prepare_cache_foldcp_local(
-                input_feature_dict["relp"],
-                z_trunk_for_cache,
-                pair_z_spec,
-                foldcp_mesh,
-                inplace_safe,
+            pair_z, pair_z_spec = (
+                self.diffusion_conditioning.prepare_cache_foldcp_local(
+                    input_feature_dict["relp"],
+                    z_trunk_for_cache,
+                    pair_z_spec,
+                    foldcp_mesh,
+                    inplace_safe,
+                )
             )
         # Conditioning, shared across difference samples
         # Diffusion_conditioning consumes 7-8G when token num is 768,
@@ -1392,6 +1404,7 @@ class DiffusionModule(nn.Module):
                     z_spec=pair_z_spec,
                     p_lm=p_lm,
                     c_l=c_l,
+                    window_spec=atom_window_spec,
                     inplace_safe=inplace_safe,
                 )
             else:
@@ -1436,8 +1449,11 @@ class DiffusionModule(nn.Module):
                 z_spec=pair_z_spec,
                 mesh=foldcp_mesh,
                 inplace_safe=inplace_safe,
-                extra_attn_bias=input_feature_dict.get("structural_pair_attn_bias", None),
+                extra_attn_bias=input_feature_dict.get(
+                    "structural_pair_attn_bias", None
+                ),
                 enable_efficient_fusion=enable_efficient_fusion,
+                projected_bias_local=foldcp_attention_bias,
             )
         elif enable_efficient_fusion:
             z = self.normalize(z_pair.to(dtype=torch.float32))
@@ -1449,7 +1465,9 @@ class DiffusionModule(nn.Module):
                 inplace_safe=inplace_safe,
                 chunk_size=chunk_size,
                 enable_efficient_fusion=enable_efficient_fusion,
-                extra_attn_bias=input_feature_dict.get("structural_pair_attn_bias", None),
+                extra_attn_bias=input_feature_dict.get(
+                    "structural_pair_attn_bias", None
+                ),
             )
         else:
             z = z_pair.to(dtype=torch.float32)
@@ -1460,7 +1478,9 @@ class DiffusionModule(nn.Module):
                 inplace_safe=inplace_safe,
                 chunk_size=chunk_size,
                 enable_efficient_fusion=enable_efficient_fusion,
-                extra_attn_bias=input_feature_dict.get("structural_pair_attn_bias", None),
+                extra_attn_bias=input_feature_dict.get(
+                    "structural_pair_attn_bias", None
+                ),
             )
 
         a_token = self.layernorm_a(a_token)
@@ -1519,6 +1539,10 @@ class DiffusionModule(nn.Module):
         use_conditioning: bool = True,
         enable_efficient_fusion: bool = False,
         pair_z_spec: Optional[FoldCPPairShardSpec] = None,
+        atom_window_spec: Optional[FoldCPWindowShardSpec] = None,
+        foldcp_attention_bias: Optional[
+            list[torch.Tensor | FoldCPQueryOwnedAttentionBias]
+        ] = None,
     ) -> torch.Tensor:
         """One step denoise: x_noisy, noise_level -> x_denoised
 
@@ -1577,6 +1601,8 @@ class DiffusionModule(nn.Module):
             use_conditioning=use_conditioning,
             enable_efficient_fusion=enable_efficient_fusion,
             pair_z_spec=pair_z_spec,
+            atom_window_spec=atom_window_spec,
+            foldcp_attention_bias=foldcp_attention_bias,
         )
 
         # Rescale updates to positions and combine with input positions
