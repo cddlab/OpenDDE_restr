@@ -1,4 +1,4 @@
-see [rgi_utils](https://github.com/cddlab/rgi_utils) for more information.
+see [RGI-toolkit](https://github.com/cddlab/rgi_toolkit) for more information.
 
 <details>
 <summary>Original README</summary>
@@ -33,7 +33,7 @@ OpenDDE is an open-source, all-atom biomolecular foundation model that turns co-
 ## Restraint-Guided Inference fork
 
 The private `cddlab/OpenDDE_restr` fork's `rgi-integration` branch supports
-[`rgi_utils`](https://github.com/cddlab/rgi_utils) restraints during
+[RGI-toolkit](https://github.com/cddlab/rgi_toolkit) restraints during
 diffusion. Configuration is carried in each input job; no additional CLI flag
 is required. See the
 [`OpenDDE RGI guide`](docs/restraint_guided_inference.md).

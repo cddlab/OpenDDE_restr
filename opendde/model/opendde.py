@@ -996,8 +996,8 @@ class OpenDDE(nn.Module):
         combined_restraints = None
         restraints_config = input_feature_dict.get("restraints_config")
         if restraints_config:
-            from rgi_utils.combined import CombinedRestraints
-            from rgi_utils.opendde.adapter import OpenDDEAdapter
+            from rgi_toolkit.combined import CombinedRestraints
+            from rgi_toolkit.opendde.adapter import OpenDDEAdapter
 
             combined_restraints = CombinedRestraints()
             combined_restraints.setup(

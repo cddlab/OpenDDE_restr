@@ -2,7 +2,7 @@
 
 The `rgi-integration` branch of
 [`cddlab/OpenDDE_restr`](https://github.com/cddlab/OpenDDE_restr) integrates
-OpenDDE with [`rgi_utils`](https://github.com/cddlab/rgi_utils). RGI optimizes
+OpenDDE with [RGI-toolkit](https://github.com/cddlab/rgi_toolkit). RGI optimizes
 the denoised coordinate estimate during every active diffusion step. It supports
 distance, angle, dihedral, improper, plane, RMSD, base-pair, ligand/polymer
 conformer, VdW, and custom restraints through the shared `restraints_config`
@@ -10,7 +10,7 @@ schema.
 
 ## Installation
 
-The fork declares `rgi_utils` as a dependency:
+The fork declares `rgi_toolkit` as a dependency:
 
 ```bash
 git clone git@github.com:cddlab/OpenDDE_restr.git
@@ -23,7 +23,7 @@ uv pip install --python .venv --torch-backend cu126 -e ".[gpu]"
 For engine development, install a sibling checkout after installing OpenDDE:
 
 ```bash
-uv pip install --python .venv -e ../rgi_utils
+uv pip install --python .venv -e ../RGI-toolkit
 ```
 
 ## Input
@@ -84,7 +84,7 @@ per-chain, 1-based token ordinal.
 
 The complete schema, selection DSL, activation windows, reference restraints,
 and custom-expression vocabulary are documented in the
-[`rgi_utils` configuration reference](https://github.com/cddlab/rgi_utils/blob/main/doc/config.md).
+[`rgi_toolkit` configuration reference](https://github.com/cddlab/rgi_toolkit/blob/main/doc/config.md).
 
 ## Run
 

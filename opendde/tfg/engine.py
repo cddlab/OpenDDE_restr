@@ -384,7 +384,7 @@ class TFGEngine:
             inplace_safe: Whether `denoise_net` may do in-place ops.
             enable_efficient_fusion: Whether to enable fused kernels.
             torch_generator: Optional RNG used for reproducible stochastic guidance.
-            combined_restraints: Per-structure rgi_utils instance.
+            combined_restraints: Per-structure rgi_toolkit instance.
             sigma_gate: Pre-churn diffusion sigma used for RGI activation gates.
 
         Returns:

@@ -149,7 +149,7 @@ def sample_diffusion(
         enable_efficient_fusion (bool): Whether to enable efficient fusion. Defaults to False.
         guidance_configs (Optional[dict[str, Any]]): Training-free guidance configs. Defaults to None.
         pair_z_spec (Any): Optional Fold-CP pair shard metadata forwarded to denoise_net.
-        combined_restraints (Optional[Any]): Per-structure rgi_utils instance.
+        combined_restraints (Optional[Any]): Per-structure rgi_toolkit instance.
 
     Returns:
         torch.Tensor: the denoised coordinates of x in inference stage
