@@ -17,6 +17,7 @@
 """Generator-level Training-Free Guidance regression tests."""
 
 import numpy as np
+import pytest
 import torch
 
 from opendde.model.generator import InferenceNoiseScheduler, sample_diffusion
@@ -192,3 +193,149 @@ def test_rgi_composes_after_tfg_refinement():
 
     assert len(restraints.calls) == 2
     assert torch.isfinite(output).all()
+
+
+@pytest.mark.parametrize("use_tfg", [False, True])
+def test_rgi_failure_is_inside_foldcp_completion_boundary(monkeypatch, use_tfg):
+    from opendde.model import generator
+
+    active_boundary = []
+    denoise_calls = []
+
+    def synchronize(action, *, group, description):
+        active_boundary.append(description)
+        try:
+            return action()
+        finally:
+            active_boundary.pop()
+
+    class FailingRestraints:
+        def minimize(self, coords, step, sigma):
+            assert step == 0
+            assert "completion" in active_boundary[-1]
+            raise RuntimeError("RGI rank-local failure")
+
+    def denoiser(**kwargs):
+        denoise_calls.append(kwargs)
+        return kwargs["x_noisy"] * 0.9
+
+    monkeypatch.setattr(generator, "run_group_rank_action_synchronized", synchronize)
+    inputs = _inputs(n_step=2)
+    inputs["denoise_net"] = denoiser
+    guidance = _tfg_cfg() if use_tfg else None
+    if guidance is not None:
+        guidance["mu"] = 0.0
+    with pytest.raises(RuntimeError, match="RGI rank-local failure"):
+        sample_diffusion(
+            N_sample=1,
+            foldcp_group=object(),
+            guidance_configs=guidance,
+            combined_restraints=FailingRestraints(),
+            **inputs,
+        )
+    assert len(denoise_calls) == 1
+
+
+def test_foldcp_sampler_step_preparation_failure_stops_before_denoiser(monkeypatch):
+    from opendde.model import generator
+
+    descriptions = []
+    denoise_calls = []
+
+    def synchronize(action, *, group, description):
+        assert group is foldcp_group
+        descriptions.append(description)
+        if description.endswith("step 0 preparation"):
+            raise RuntimeError("remote sampler preparation OOM")
+        return action()
+
+    def denoiser(**kwargs):
+        denoise_calls.append(kwargs)
+        return kwargs["x_noisy"]
+
+    foldcp_group = object()
+    monkeypatch.setattr(generator, "run_group_rank_action_synchronized", synchronize)
+    inputs = _inputs(n_step=2)
+    inputs["denoise_net"] = denoiser
+
+    with pytest.raises(RuntimeError, match="remote sampler preparation OOM"):
+        sample_diffusion(N_sample=1, foldcp_group=foldcp_group, **inputs)
+
+    assert descriptions == [
+        "Fold-CP diffusion initial-noise preparation",
+        "Fold-CP diffusion sampler step 0 preparation",
+    ]
+    assert denoise_calls == []
+
+
+def test_foldcp_sampler_step_completion_failure_stops_before_next_step(monkeypatch):
+    from opendde.model import generator
+
+    descriptions = []
+    denoise_calls = []
+
+    def synchronize(action, *, group, description):
+        assert group is foldcp_group
+        descriptions.append(description)
+        if description.endswith("step 0 completion"):
+            raise RuntimeError("remote sampler completion OOM")
+        return action()
+
+    def denoiser(**kwargs):
+        denoise_calls.append(kwargs)
+        return kwargs["x_noisy"] * 0.9
+
+    foldcp_group = object()
+    monkeypatch.setattr(generator, "run_group_rank_action_synchronized", synchronize)
+    inputs = _inputs(n_step=2)
+    inputs["denoise_net"] = denoiser
+
+    with pytest.raises(RuntimeError, match="remote sampler completion OOM"):
+        sample_diffusion(N_sample=1, foldcp_group=foldcp_group, **inputs)
+
+    assert descriptions == [
+        "Fold-CP diffusion initial-noise preparation",
+        "Fold-CP diffusion sampler step 0 preparation",
+        "Fold-CP diffusion sampler step 0 completion",
+    ]
+    assert len(denoise_calls) == 1
+
+
+def test_foldcp_tfg_completion_failure_stops_before_next_denoiser(monkeypatch):
+    from opendde.model import generator
+
+    descriptions = []
+    denoise_calls = []
+
+    def synchronize(action, *, group, description):
+        assert group is foldcp_group
+        descriptions.append(description)
+        if description.endswith("step 0 outer 0 completion"):
+            raise RuntimeError("remote TFG completion OOM")
+        return action()
+
+    def denoiser(**kwargs):
+        denoise_calls.append(kwargs)
+        return kwargs["x_noisy"] * 0.9
+
+    foldcp_group = object()
+    monkeypatch.setattr(generator, "run_group_rank_action_synchronized", synchronize)
+    cfg = _tfg_cfg()
+    cfg["rho"] = 0.0
+    cfg["mu"] = 0.0
+    inputs = _inputs(n_step=2)
+    inputs["denoise_net"] = denoiser
+
+    with pytest.raises(RuntimeError, match="remote TFG completion OOM"):
+        sample_diffusion(
+            N_sample=1,
+            guidance_configs=cfg,
+            foldcp_group=foldcp_group,
+            **inputs,
+        )
+
+    assert any(
+        description.endswith("step 0 outer 0 completion")
+        for description in descriptions
+    )
+    assert len(denoise_calls) == 1

@@ -6,6 +6,46 @@ User-facing changes to OpenDDE are documented here.
 
 No changes yet.
 
+## [1.1.1] - 2026-09-02
+
+### Added
+
+- Added Apple Silicon MPS inference through `--device mps`; `--device auto`
+  selects CUDA, then MPS, then CPU. MPS uses the PyTorch triangle kernels and
+  defaults to FP32, while Fold-CP remains CUDA-only.
+- `InferenceRunner` now supports context-manager use and keeps runner/model
+  configuration updates synchronized.
+
+### Changed
+
+- Reduced inference memory use through bounded dynamic chunking, lower-peak
+  relative-position materialization, and CPU retention of multi-sample and
+  multi-seed outputs. Prediction values and output formats are unchanged.
+- Hardened multi-input and multi-seed inference with per-job seed schedules,
+  earlier input validation, reliable failure reporting, atomic prediction
+  directories, and preprocessing outputs that work with read-only inputs.
+- Improved MSA/template file routing and Fold-CP failure coordination. Fold-CP
+  now uses the supported `1 x P` topology and safely handles inputs smaller
+  than the launched GPU count.
+- Restored process-wide determinism and TF32 settings after inference so an
+  embedded OpenDDE runner does not alter its host application's PyTorch state.
+
+### Fixed
+
+- Rebuilds invalid OXT coordinates at free protein C termini before CIF output,
+  while preserving externally bonded termini and skipping repair when the
+  local C/CA/O anchor geometry is invalid.
+- Fixed CUDA cleanup, Fold-CP confidence output placement, output-directory
+  permissions, repeated CCD cache eviction, and caller-data mutation during
+  inference and serialization.
+
+### Compatibility
+
+- Model checkpoints and input/output formats remain compatible with OpenDDE
+  1.1.0.
+- Fold-CP supports `1 x P`; `OPENDDE_FOLDCP_CUDA_MEMORY_FRACTION` is no longer
+  used.
+
 ## [1.1.0] - 2026-08-16
 
 ### Added
@@ -122,7 +162,8 @@ For installation and upgrade commands, see the
 
 - Initial PyPI bootstrap release of the `opendde` package name.
 
-[Unreleased]: https://github.com/aurekaresearch/OpenDDE/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/aurekaresearch/OpenDDE/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/aurekaresearch/OpenDDE/releases/tag/v1.1.1
 [1.1.0]: https://github.com/aurekaresearch/OpenDDE/releases/tag/v1.1.0
 [1.0.3]: https://github.com/aurekaresearch/OpenDDE/releases/tag/v1.0.3
 [1.0.2]: https://github.com/aurekaresearch/OpenDDE/releases/tag/v1.0.2
